@@ -1,0 +1,9 @@
+env/
+/potlis/config.py
+.vscode
+.idea
+__pycache__/
+.DS_Store
+.env/
+solis.egg-info/
+solis/.DS_Store
