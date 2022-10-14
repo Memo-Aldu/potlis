@@ -7,6 +7,7 @@ import numpy as np
 from datetime import datetime
 from fake_useragent import UserAgent
 from pytz import timezone
+from potlis.help.helper import is_admin
 
 plugin = lightbulb.Plugin("BestBuy-plugin")
 
@@ -17,6 +18,7 @@ BB_DEFAULT_URL = 'https://www.bestbuy.ca'
 BB_AUTHOR_IMAGE_URL = 'https://upload.wikimedia.org/wikipedia/' \
                       'commons/thumb/f/f5/Best_Buy_Logo.svg/1200px-Best_Buy_Logo.svg.png'
 EMBED_COLOR = '#eb9834'
+DEFAULT_SEARCH_SIZE = '10'
 log = logging.getLogger(__name__)
 ua = UserAgent()
 tz = timezone('US/Eastern')
@@ -51,7 +53,7 @@ async def best_buy(ctx: lightbulb.Context) -> None:
     "category", "The product category.", str, required=False
 )
 @lightbulb.option(
-    "max", "Max amount of products  to get.", str, required=False
+    f"max", "Max amount of products  to get 1-{DEFAULT_SEARCH_SIZE}.", str, required=False
 )
 @lightbulb.command(
     "product",
@@ -61,8 +63,17 @@ async def best_buy(ctx: lightbulb.Context) -> None:
 @lightbulb.implements(lightbulb.SlashSubCommand, lightbulb.PrefixSubCommand)
 async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
     query, category = ctx.options.query, ctx.options.category
-    max_products = ctx.options.max or '30'
-
+    max_products = ctx.options.max or DEFAULT_SEARCH_SIZE
+    if not is_admin(ctx) and int(max_products) > int(DEFAULT_SEARCH_SIZE):
+        await ctx.respond(f"{ctx.user.mention} you cannot "
+                          f"ask for more then {DEFAULT_SEARCH_SIZE} "
+                          f"products contact admin if you would like "
+                          f"the permission")
+        return
+    if not max_products.isnumeric():
+        await ctx.respond(f"{ctx.user.mention} you cannot "
+                          f"provide {max_products} as a value")
+        return
     product_api_call = BEST_BUY_PRODUCT_API. \
         format(category, max_products, query)
     log.info(f"Best Buy query {query}"
