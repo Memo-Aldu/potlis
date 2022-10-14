@@ -2,13 +2,14 @@ from __future__ import annotations
 import asyncio
 import os
 import miru
+import json
 from dotenv import load_dotenv
 import hikari
 import lightbulb
 import logging
 from __init__ import __version__
 from aiohttp import ClientSession
-from pytz import utc
+from pytz import timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 log = logging.getLogger(__name__)
@@ -16,8 +17,10 @@ load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 GUILDS = [944703399360860200]
-OWNERS = os.getenv("OWNER_ID")
+OWNERS = json.loads(os.environ['OWNER_ID'])
 STDOUT_CHANNEL_ID = os.getenv("STDOUT_CHANNEL_ID")
+
+print(OWNERS)
 
 
 def setup() -> None:
@@ -35,7 +38,7 @@ bot = lightbulb.BotApp(
 
 )
 bot.d.scheduler = AsyncIOScheduler()
-bot.d.scheduler.configure(timezome=utc)
+bot.d.scheduler.configure(timezome=timezone('US/Eastern'))
 bot.load_extensions_from("../potlis/extensions")
 miru.load(bot)
 

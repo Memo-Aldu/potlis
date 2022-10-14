@@ -12,3 +12,4 @@ aiohttp~=3.8.3 # for the web server
 pytz~=2022.4 # for timezone support
 miru~=0.2.0
 setuptools~=58.0.4
+numpy~=1.23.4
