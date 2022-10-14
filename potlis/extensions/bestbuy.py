@@ -45,7 +45,13 @@ async def best_buy(ctx: lightbulb.Context) -> None:
 
 @best_buy.child()
 @lightbulb.option(
-    "query", "The product to search.", str, required=True
+    "query", "The product to search.", str, required=True,
+)
+@lightbulb.option(
+    "category", "The product category.", str, required=False
+)
+@lightbulb.option(
+    "max", "Max amount of products  to get.", str, required=False
 )
 @lightbulb.command(
     "product",
@@ -54,8 +60,11 @@ async def best_buy(ctx: lightbulb.Context) -> None:
 )
 @lightbulb.implements(lightbulb.SlashSubCommand, lightbulb.PrefixSubCommand)
 async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
-    query = ctx.options.query
-    product_api_call = BEST_BUY_PRODUCT_API.format("ON", query)
+    query, category = ctx.options.query, ctx.options.category
+    max_products = ctx.options.max or '30'
+
+    product_api_call = BEST_BUY_PRODUCT_API. \
+        format(category, max_products, query)
     log.info(f"Best Buy query {query}"
              f" requested buy {ctx.user}")
     products = (
@@ -72,11 +81,7 @@ async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
         log.info(f"Api response: {inventory}")
         embeds = make_embed(products=products, availabilities=inventory)
         log.info(f"Created {len(embeds)} embeds")
-        embeds = np.array_split(embeds, len(embeds) // 10)
-        for array in embeds:
-            log.info(f"Sent {len(array)} embeds to channel"
-                     f" {ctx.channel_id}")
-            await ctx.respond(embeds=array)
+        await send_embeds(embeds, ctx)
         return
     elif len(products) == 0:
         log.info(f"Sending no product found for query {query}")
@@ -90,12 +95,28 @@ async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
         )
 
 
+'''
+Load extension
+'''
+
+
 def load(bot: lightbulb.BotApp) -> None:
     bot.add_plugin(plugin)
 
 
+'''
+Unload extension
+'''
+
+
 def unload(bot: lightbulb.BotApp) -> None:
     bot.remove_plugin(plugin)
+
+
+'''
+Build a the API call with the products
+return the api call as a string
+'''
 
 
 async def build_inventory_api_call(products: list) -> str:
@@ -105,6 +126,11 @@ async def build_inventory_api_call(products: list) -> str:
     for product in products:
         sku_query += product['sku'] + "%7C"
     return BB_STOCK_API.format(BB_DEFAULT_LOCATION, sku_query)
+
+
+'''
+Makes API call and decodes the response
+'''
 
 
 async def make_api_call(api_call, session) -> any:
@@ -128,7 +154,14 @@ async def make_api_call(api_call, session) -> any:
     return None
 
 
-def make_embed(products, availabilities):
+'''
+Extract relevant information from API
+responses and create embeds with them
+ths function returns a list of embeds
+'''
+
+
+def make_embed(products, availabilities) -> list:
     date = datetime.now(tz).replace(microsecond=0)
     embed_list = []
     index = 0
@@ -176,20 +209,58 @@ def make_embed(products, availabilities):
     return embed_list
 
 
-def get_description_hyperlink(desc, hyperlink):
-    half = slice(0, len(desc) // 2)
-    return "[" + desc[half] + "...]" + \
+'''
+Sends embeds to channel 
+Embeds are sent 10 at a time 
+because it's the limit
+'''
+
+
+async def send_embeds(embeds: list, ctx: lightbulb.Context) -> None:
+    if len(embeds) > 10:
+        embeds = np.array_split(embeds, len(embeds) // 10)
+        for array in embeds:
+            log.info(f"Sent {len(array)} embeds to channel"
+                     f" {ctx.channel_id}")
+            await ctx.respond(embeds=array)
+    else:
+        log.info(f"Sent {len(embeds)} embeds to channel"
+                 f" {ctx.channel_id}")
+        await ctx.respond(embeds=embeds)
+
+
+'''
+Makes a hyper link with the description,
+Shortens the description to less then 140 characters
+'''
+
+
+def get_description_hyperlink(desc, hyperlink) -> str:
+    desc_size = 140
+    if len(desc) < desc_size:
+        return "[" + desc + "]" + \
+               "(" + hyperlink + ")"
+
+    return "[" + desc[0:desc_size] + "...]" + \
            "(" + hyperlink + ")"
 
 
-def filter_status(status):
-    if status == "OutOfStock":
+'''
+Filters the stock status and returns a
+clean string
+'''
+
+
+def filter_status(status) -> str:
+    if status == "OutOfStock" \
+            or status == 'OnlineOnly':
         return "Out Of Stock"
     elif status == "ComingSoon":
         return "Coming Soon"
     elif status == "BackOrder":
         return "Back Order-able"
-    elif status == "InStock":
+    elif status == "InStock" \
+            or status == 'InStockOnlineOnly':
         return "In Stock"
     elif status == "SoldOutOnline":
         return "Sold Out"
