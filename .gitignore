@@ -5,5 +5,5 @@ env/
 __pycache__/
 .DS_Store
 .env
-solis.egg-info/
-solis/.DS_Store
+potlis.egg-info/
+potlis/.DS_Store
