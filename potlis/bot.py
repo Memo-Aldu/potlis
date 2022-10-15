@@ -1,5 +1,4 @@
 from __future__ import annotations
-import asyncio
 import os
 import miru
 import json
@@ -20,8 +19,6 @@ GUILDS = [944703399360860200]
 OWNERS = json.loads(os.environ['OWNER_ID'])
 STDOUT_CHANNEL_ID = os.getenv("STDOUT_CHANNEL_ID")
 
-print(OWNERS)
-
 
 def setup() -> None:
     log.info("Running bot setup...")
@@ -41,7 +38,7 @@ bot.d.scheduler = AsyncIOScheduler()
 bot.d.scheduler.configure(timezome=timezone('US/Eastern'))
 
 # Vscode ../potlis/extensions pycharm ./potlis/extensions
-bot.load_extensions_from("../potlis/extensions")
+bot.load_extensions_from("./potlis/extensions")
 miru.load(bot)
 
 

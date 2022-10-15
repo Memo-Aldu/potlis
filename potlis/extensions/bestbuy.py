@@ -4,21 +4,25 @@ import lightbulb
 import logging
 import json
 import numpy as np
+import math
 from datetime import datetime
 from fake_useragent import UserAgent
 from pytz import timezone
 from potlis.help.helper import is_admin
+
 
 plugin = lightbulb.Plugin("BestBuy-plugin")
 
 BEST_BUY_PRODUCT_API = os.getenv("BB_PRODUCT_API")
 BB_STOCK_API = os.getenv("BB_STOCK_API")
 BB_DEFAULT_LOCATION = os.getenv("DEFAULT_STORE_LOCATION")
+
 BB_DEFAULT_URL = 'https://www.bestbuy.ca'
 BB_AUTHOR_IMAGE_URL = 'https://upload.wikimedia.org/wikipedia/' \
                       'commons/thumb/f/f5/Best_Buy_Logo.svg/1200px-Best_Buy_Logo.svg.png'
 EMBED_COLOR = '#eb9834'
 DEFAULT_SEARCH_SIZE = '10'
+GPU_CATEGORY = '20397'
 log = logging.getLogger(__name__)
 ua = UserAgent()
 tz = timezone('US/Eastern')
@@ -34,11 +38,10 @@ header = {
     'user-agent': ua.safari
 }
 
-
+# auto_defer=True is used to automatically defer the slash command
 @plugin.command
 @lightbulb.command("bestbuy",
                    "Best buy scraping commands",
-                   auto_defer=True
                    )
 @lightbulb.implements(lightbulb.SlashCommandGroup, lightbulb.PrefixCommandGroup)
 async def best_buy(ctx: lightbulb.Context) -> None:
@@ -58,70 +61,46 @@ async def best_buy(ctx: lightbulb.Context) -> None:
 @lightbulb.command(
     "product",
     "Get product and stock info of a best buy product.",
-    auto_defer=True
 )
 @lightbulb.implements(lightbulb.SlashSubCommand, lightbulb.PrefixSubCommand)
 async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
     query, category = ctx.options.query, ctx.options.category
     max_products = ctx.options.max or DEFAULT_SEARCH_SIZE
-    if not is_admin(ctx) and int(max_products) > int(DEFAULT_SEARCH_SIZE):
-        await ctx.respond(f"{ctx.user.mention} you cannot "
-                          f"ask for more then {DEFAULT_SEARCH_SIZE} "
-                          f"products contact admin if you would like "
-                          f"the permission")
+    if not await is_valid_search_size(ctx, max_products):
         return
-    if not max_products.isnumeric():
-        await ctx.respond(f"{ctx.user.mention} you cannot "
-                          f"provide {max_products} as a value")
-        return
-    product_api_call = BEST_BUY_PRODUCT_API. \
-        format(category, max_products, query)
     log.info(f"Best Buy query {query}"
              f" requested buy {ctx.user}")
-    products = (
-        await make_api_call(
-            product_api_call, ctx.bot.d.session
-        ))['products']
-    log.info(f"Api response: {products}")
-    if len(products) > 0:
-        inventory_api_call = await build_inventory_api_call(products)
-        inventory = (
-            await make_api_call(
-                inventory_api_call, ctx.bot.d.session
-            ))['availabilities']
-        log.info(f"Api response: {inventory}")
-        embeds = make_embed(products=products, availabilities=inventory)
-        log.info(f"Created {len(embeds)} embeds")
-        await send_embeds(embeds, ctx)
+    product_api_call = BEST_BUY_PRODUCT_API. \
+        format(category, max_products, query)
+    await handle_api_calls(ctx, product_api_call, query)
+    
+
+
+
+@best_buy.child()
+@lightbulb.option(
+    "gpu_name", "The name of the gpu.", str, required=True,
+)
+
+@lightbulb.option(
+    "max", "Max amount of products  to get 1-{$DEFAULT_SEARCH_SIZE}.", str, required=False
+)
+@lightbulb.command(
+    "gpu",
+    "Get product and stock info of a best buy gpu.",
+)
+@lightbulb.implements(lightbulb.SlashSubCommand, lightbulb.PrefixSubCommand)
+async def get_bestbuy_gpu_by_name(ctx: lightbulb.Context) -> None:
+    gpu_name = ctx.options.gpu_name
+    max_products = ctx.options.max or DEFAULT_SEARCH_SIZE
+    if not await is_valid_search_size(ctx, max_products):
         return
-    elif len(products) == 0:
-        log.info(f"Sending no product found for query {query}")
-        await ctx.respond(
-            f"No product was found with query {query}", components=[]
-        )
-    else:
-        log.info("Sending API call fail message")
-        await ctx.respond(
-            f"Failed to get data for query {query}", components=[]
-        )
-
-
-'''
-Load extension
-'''
-
-
-def load(bot: lightbulb.BotApp) -> None:
-    bot.add_plugin(plugin)
-
-
-'''
-Unload extension
-'''
-
-
-def unload(bot: lightbulb.BotApp) -> None:
-    bot.remove_plugin(plugin)
+    log.info(f"Best Buy query {gpu_name}"
+             f" requested buy {ctx.user}")
+    product_api_call = BEST_BUY_PRODUCT_API. \
+        format(GPU_CATEGORY, max_products, gpu_name)
+    await handle_api_calls(ctx, product_api_call, gpu_name)
+    
 
 
 '''
@@ -137,6 +116,44 @@ async def build_inventory_api_call(products: list) -> str:
     for product in products:
         sku_query += product['sku'] + "%7C"
     return BB_STOCK_API.format(BB_DEFAULT_LOCATION, sku_query)
+
+
+
+"""
+    _summary_: Handles the api response
+    _params_: product_api_call: the response from the api call
+    _params_: ctx: the ctx of the command
+    _params_: query: the query that was used to search
+    _returns_: None
+"""
+
+
+async def handle_api_calls(ctx: lightbulb.SlashContext, product_api_call: str, query: str) -> None:
+    products = (
+        await make_api_call(
+            product_api_call, ctx.bot.d.session
+        ))['products']
+    log.info(f"Api response: {products}")
+    if len(products) > 0:
+        inventory_api_call = await build_inventory_api_call(products)
+        inventory = (
+            await make_api_call(
+                inventory_api_call, ctx.bot.d.session
+            ))['availabilities']
+        log.info(f"Api response: {inventory}")
+        embeds = make_embed(products=products, availabilities=inventory)
+        log.info(f"Created {len(embeds)} embeds")
+        await send_embeds(embeds, ctx)
+    elif len(products) == 0:
+        log.info(f"Sending no product found for query {query}")
+        await ctx.respond(
+            f"No product was found with query {query}", components=[]
+        )
+    else:
+        log.info("Sending API call fail message")
+        await ctx.respond(
+            f"Failed to get data for query {query}", components=[]
+        )
 
 
 '''
@@ -229,7 +246,9 @@ because it's the limit
 
 async def send_embeds(embeds: list, ctx: lightbulb.Context) -> None:
     if len(embeds) > 10:
-        embeds = np.array_split(embeds, len(embeds) // 10)
+        print("here")
+        embeds = np.array_split(embeds, math.ceil(len(embeds) / 10))
+        print(len(embeds))
         for array in embeds:
             log.info(f"Sent {len(array)} embeds to channel"
                      f" {ctx.channel_id}")
@@ -256,6 +275,20 @@ def get_description_hyperlink(desc, hyperlink) -> str:
            "(" + hyperlink + ")"
 
 
+async def is_valid_search_size(ctx: lightbulb.SlashContext, 
+                                     max_products_requested : str) -> bool:
+    if not is_admin(ctx) and int(max_products_requested) > int(DEFAULT_SEARCH_SIZE):
+            await ctx.respond(f"{ctx.user.mention} you cannot "
+                            f"ask for more then {DEFAULT_SEARCH_SIZE} "
+                            f"products contact admin if you would like "
+                            f"the permission")
+            return False
+    if not max_products_requested.isnumeric():
+            await ctx.respond(f"{ctx.user.mention} you cannot "
+                            f"provide {max_products_requested} as a value")
+            return False
+    return True
+
 '''
 Filters the stock status and returns a
 clean string
@@ -279,3 +312,24 @@ def filter_status(status) -> str:
         return "Not Available"
     else:
         return status
+
+
+
+"""
+Load extension
+"""
+
+
+def load(bot: lightbulb.BotApp) -> None:
+    bot.add_plugin(plugin)
+
+
+
+"""
+Unload extension
+"""
+
+
+def unload(bot: lightbulb.BotApp) -> None:
+    bot.remove_plugin(plugin)
+
