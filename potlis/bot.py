@@ -38,7 +38,7 @@ bot.d.scheduler = AsyncIOScheduler()
 bot.d.scheduler.configure(timezome=timezone('US/Eastern'))
 
 # Vscode ../potlis/extensions pycharm ./potlis/extensions
-bot.load_extensions_from("./potlis/extensions")
+bot.load_extensions_from("../potlis/extensions")
 miru.load(bot)
 
 
