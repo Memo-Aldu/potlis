@@ -10,7 +10,6 @@ from fake_useragent import UserAgent
 from pytz import timezone
 from potlis.help.helper import is_admin
 
-
 plugin = lightbulb.Plugin("BestBuy-plugin")
 
 BEST_BUY_PRODUCT_API = os.getenv("BB_PRODUCT_API")
@@ -38,6 +37,7 @@ header = {
     'user-agent': ua.safari
 }
 
+
 # auto_defer=True is used to automatically defer the slash command
 @plugin.command
 @lightbulb.command("bestbuy",
@@ -63,7 +63,7 @@ async def best_buy(ctx: lightbulb.Context) -> None:
     "Get product and stock info of a best buy product.",
 )
 @lightbulb.implements(lightbulb.SlashSubCommand, lightbulb.PrefixSubCommand)
-async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
+async def get_bestbuy_product_by_search_term(ctx: lightbulb.SlashContext) -> None:
     query, category = ctx.options.query, ctx.options.category
     max_products = ctx.options.max or DEFAULT_SEARCH_SIZE
     if not await is_valid_search_size(ctx, max_products):
@@ -73,15 +73,12 @@ async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
     product_api_call = BEST_BUY_PRODUCT_API. \
         format(category, max_products, query)
     await handle_api_calls(ctx, product_api_call, query)
-    
-
 
 
 @best_buy.child()
 @lightbulb.option(
     "gpu_name", "The name of the gpu.", str, required=True,
 )
-
 @lightbulb.option(
     "max", "Max amount of products  to get 1-{$DEFAULT_SEARCH_SIZE}.", str, required=False
 )
@@ -90,7 +87,7 @@ async def get_bestbuy_product_by_search_term(ctx: lightbulb.Context) -> None:
     "Get product and stock info of a best buy gpu.",
 )
 @lightbulb.implements(lightbulb.SlashSubCommand, lightbulb.PrefixSubCommand)
-async def get_bestbuy_gpu_by_name(ctx: lightbulb.Context) -> None:
+async def get_bestbuy_gpu_by_name(ctx: lightbulb.SlashContext) -> None:
     gpu_name = ctx.options.gpu_name
     max_products = ctx.options.max or DEFAULT_SEARCH_SIZE
     if not await is_valid_search_size(ctx, max_products):
@@ -100,7 +97,6 @@ async def get_bestbuy_gpu_by_name(ctx: lightbulb.Context) -> None:
     product_api_call = BEST_BUY_PRODUCT_API. \
         format(GPU_CATEGORY, max_products, gpu_name)
     await handle_api_calls(ctx, product_api_call, gpu_name)
-    
 
 
 '''
@@ -116,7 +112,6 @@ async def build_inventory_api_call(products: list) -> str:
     for product in products:
         sku_query += product['sku'] + "%7C"
     return BB_STOCK_API.format(BB_DEFAULT_LOCATION, sku_query)
-
 
 
 """
@@ -275,19 +270,20 @@ def get_description_hyperlink(desc, hyperlink) -> str:
            "(" + hyperlink + ")"
 
 
-async def is_valid_search_size(ctx: lightbulb.SlashContext, 
-                                     max_products_requested : str) -> bool:
+async def is_valid_search_size(ctx: lightbulb.SlashContext,
+                               max_products_requested: str) -> bool:
     if not is_admin(ctx) and int(max_products_requested) > int(DEFAULT_SEARCH_SIZE):
-            await ctx.respond(f"{ctx.user.mention} you cannot "
-                            f"ask for more then {DEFAULT_SEARCH_SIZE} "
-                            f"products contact admin if you would like "
-                            f"the permission")
-            return False
+        await ctx.respond(f"{ctx.user.mention} you cannot "
+                          f"ask for more then {DEFAULT_SEARCH_SIZE} "
+                          f"products contact admin if you would like "
+                          f"the permission")
+        return False
     if not max_products_requested.isnumeric():
-            await ctx.respond(f"{ctx.user.mention} you cannot "
-                            f"provide {max_products_requested} as a value")
-            return False
+        await ctx.respond(f"{ctx.user.mention} you cannot "
+                          f"provide {max_products_requested} as a value")
+        return False
     return True
+
 
 '''
 Filters the stock status and returns a
@@ -314,7 +310,6 @@ def filter_status(status) -> str:
         return status
 
 
-
 """
 Load extension
 """
@@ -324,7 +319,6 @@ def load(bot: lightbulb.BotApp) -> None:
     bot.add_plugin(plugin)
 
 
-
 """
 Unload extension
 """
@@ -332,4 +326,3 @@ Unload extension
 
 def unload(bot: lightbulb.BotApp) -> None:
     bot.remove_plugin(plugin)
-
